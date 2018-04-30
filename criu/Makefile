@@ -22,6 +22,10 @@ ccflags-y		+= -iquote $(ARCH_DIR)/include
 ccflags-y		+= -iquote .
 ccflags-y		+= -I/usr/include/libnl3
 ccflags-y		+= $(COMPEL_UAPI_INCLUDES)
+#yufei
+ccflags-y		+= -I/home/alan/lz4/lib
+
+
 
 export ccflags-y
 
@@ -66,6 +70,8 @@ PROGRAM-BUILTINS	+= $(obj)/built-in.o
 PROGRAM-BUILTINS	+= $(ARCH-LIB)
 PROGRAM-BUILTINS	+= soccr/libsoccr.a
 PROGRAM-BUILTINS	+= $(COMPEL_LIBS)
+#yufei
+PROGRAM-BUILTINS	+= /usr/local/lib/liblz4.a
 
 $(obj)/built-in.o: pie
 	$(Q) $(MAKE) $(call build-as,Makefile.crtools,criu) all

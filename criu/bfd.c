@@ -16,6 +16,10 @@
 #include "xmalloc.h"
 #include "page.h"
 
+// added by yufeixiong
+#include "lz4.h"
+// *******************
+
 #undef	LOG_PREFIX
 #define LOG_PREFIX "bfd: "
 
@@ -250,23 +254,66 @@ static int bflush(struct bfd *bfd)
 	return 0;
 }
 
-static int __bwrite(struct bfd *bfd, const void *buf, int size)
+// static int __bwrite(struct bfd *bfd, const void *buf, int size)
+// {
+// 	struct xbuf *b = &bfd->b;
+
+// 	if (b->sz + size > BUFSIZE) {
+// 		int ret;
+// 		ret = bflush(bfd);
+// 		if (ret < 0)
+// 			return ret;
+// 	}
+
+// 	if (size > BUFSIZE)
+// 		return write(bfd->fd, buf, size);
+
+// 	memcpy(b->data + b->sz, buf, size);
+// 	b->sz += size;
+// 	return size;
+// }
+
+// yufei
+static int __bwrite(struct bfd *bfd, const void *buf, int src_size)
 {
+	int size = 0; //it will equal cmp_data_sz
 	struct xbuf *b = &bfd->b;
 
-	if (b->sz + size > BUFSIZE) {
-		int ret;
-		ret = bflush(bfd);
+	int max_dst_sz = LZ4_COMPRESSBOUND(src_size);
+	char *cmp_data = malloc(max_dst_sz);
+	if(cmp_data == NULL) {
+		printf("Failed to allocate memory for *compressed_data.");
+		exit(1);
+	}
+	int cmp_data_sz = LZ4_compress_default(buf, cmp_data, src_size, max_dst_sz);
+	if(cmp_data_sz < 0) {
+		printf("cmp_data_sz < 0.");
+		exit(cmp_data_sz);
+	} else if(cmp_data_sz == 0) {
+		printf("cmp_data_sz == 0.");
+		exit(1);
+	}
+	size = cmp_data_sz;
+
+	if (b->sz + size + sizeof(int) > BUFSIZE) {
+		int ret= bflush(bfd);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (size > BUFSIZE)
+	if (size > BUFSIZE) { //if data size is too big , no need to write it to buffer,
+		// wirte it directly to file
+		int ret =  write(bfd->fd, &size, sizeof(int));
+		if(ret < 0) {
+			return ret;
+		}
 		return write(bfd->fd, buf, size);
-
-	memcpy(b->data + b->sz, buf, size);
-	b->sz += size;
-	return size;
+	}
+	// if data size is smaller than buffer size, write it to buffer
+	memcpy(b->data + b->sz, &size, sizeof(int));
+	memcpy(b->data + b->sz + sizeof(int), cmp_data, size);
+	b->sz += size + sizeof(int);
+	return src_size;
 }
 
 int bwrite(struct bfd *bfd, const void *buf, int size)
